@@ -1,0 +1,95 @@
+---
+title: "Flight_delays"
+author: "Siddharth Patil"
+date: "May 11, 2018"
+output: html_document
+---
+
+#Import dataset on Flight delays
+```{r}
+data = as.data.frame(read.csv("FlightDelays.csv", header = T))
+#as.Date(data$FL_DATE, "%m/%d/%Y") #changing date column to 'Date' data type
+```
+
+#Feature selection for the tree
+```{r}
+#Identifying informative attributes based on Information Gain
+#install.packages("FSelector")
+library(FSelector)
+weights = information.gain(Flight.Status ~ . ,data = data )
+
+#Checking for highly (correlation > 0.75) correlated attributes
+set.seed(7) # ensure the results are repeatable
+# load the library
+library(mlbench)
+library(caret)
+correlationMatrix = cor(data[,c(1:34)]) # calculate correlation matrix for numeric attributes
+print(correlationMatrix) # summarize the correlation matrix
+# find attributes that are highly corrected (ideally >0.75)
+highlyCorrelated = findCorrelation(correlationMatrix, cutoff=0.75)
+# print indexes of highly correlated attributes
+print(highlyCorrelated)
+
+#Ranking features by importance
+# prepare training scheme
+control <- trainControl(method="repeatedcv", number=10, repeats=3)
+# train the model
+model <- train(Flight.Status ~ . ,data = data, method="lvq", preProcess="scale", trControl=control)
+# estimate variable importance
+importance <- varImp(model, scale=FALSE)
+# summarize importance
+print(importance)
+# plot importance
+plot(importance)
+
+#Feature selection by Recursive Feature Elimination (RFE)
+# define the control using a random forest selection function
+control <- rfeControl(functions=rfFuncs, method="cv", number=10)
+# run the RFE algorithm
+results <- rfe(data[,1:34], data[,35], sizes=c(1:34), rfeControl=control)
+# summarize the results
+print(results)
+# list the chosen features
+informative_attr = as.data.frame(predictors(results))
+# plot the results
+plot(results, type=c("g", "o"))
+
+info_attr = paste(informative_attr[,1], collapse = " + ")
+```
+
+
+#Growing a classification tree
+```{r}
+## 75% of the sample size
+smp_size <- floor(0.75 * nrow(data))
+
+## set the seed to make your partition reproducible
+set.seed(123)
+train_ind <- sample(seq_len(nrow(data)), size = smp_size)
+
+train <- data[train_ind, ]
+test <- data[-train_ind, ]
+
+library(rpart)
+class_tree = rpart(Flight.Status ~ Weather + DEP_TIME + DAY_OF_MONTH + BIN_TIME_5 + CARRIER_US + DISTANCE + CARRIER_DL + DEST_LGA + BIN_TIME_6 + DAY_WEEK_6 + ORIGIN_DCA + CARRIER_MQ + CRS_DEP_TIME + ORIGIN_IAD + CARRIER_DH + DEST_EWR + BIN_TIME_4, train, method = "class")
+
+library(rpart.plot)
+rpart.plot(class_tree, type = 4, extra = 101)
+
+```
+
+#Making predictions for the test dataset using the model
+```{r}
+test_predict = predict(class_tree, test, type = "class")
+```
+
+#Model diagnostics
+```{r}
+#Confusion matrix
+confusionMatrix(table(test$Flight.Status, test_predict))
+
+#ROC curve
+library(ROCR)
+
+```
+
