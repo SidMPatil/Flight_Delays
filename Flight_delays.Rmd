@@ -88,8 +88,5 @@ test_predict = predict(class_tree, test, type = "class")
 #Confusion matrix
 confusionMatrix(table(test$Flight.Status, test_predict))
 
-#ROC curve
-library(ROCR)
-
 ```
 
